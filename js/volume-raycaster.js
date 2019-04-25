@@ -27,21 +27,10 @@ var tabFocused = true;
 var newVolumeUpload = true;
 var targetFrameTime = 32;
 var samplingRate = 1.0;
-var WIDTH = 640;
-var HEIGHT = 480;
+var WIDTH = 670;
+var HEIGHT = 400;
 const center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
 
-var volumes = {
-	"Fuel": "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw",
-	"Neghip": "zgocya7h33nltu9/neghip_64x64x64_uint8.raw",
-	"Hydrogen Atom": "jwbav8s3wmmxd5x/hydrogen_atom_128x128x128_uint8.raw",
-	"Boston Teapot": "w4y88hlf2nbduiv/boston_teapot_256x256x178_uint8.raw",
-	"Engine": "ld2sqwwd3vaq4zf/engine_256x256x128_uint8.raw",
-	"Bonsai": "rdnhdxmxtfxe0sa/bonsai_256x256x256_uint8.raw",
-	"Foot": "ic0mik3qv4vqacm/foot_256x256x256_uint8.raw",
-	"Skull": "5rfjobn0lvb7tmo/skull_256x256x256_uint8.raw",
-	"Aneurysm": "3ykigaiym8uiwbp/aneurism_256x256x256_uint8.raw",
-};
 
 var colormaps = {
 	"Cool Warm": "colormaps/cool-warm-paraview.png",
@@ -52,31 +41,26 @@ var colormaps = {
 	"Samsel Linear YGB 1211G": "colormaps/samsel-linear-ygb-1211g.png",
 };
 
-var loadVolume = function(url, file, onload) {
+var loadVolume = function (url, file, onload) {
 	var m = file.match(fileRegex);
 	var volDims = [parseInt(m[2]), parseInt(m[3]), parseInt(m[4])];
 
 	var req = new XMLHttpRequest();
-	var loadingProgressText = document.getElementById("loadingText");
-	var loadingProgressBar = document.getElementById("loadingProgressBar");
-
-	loadingProgressText.innerHTML = "Loading Volume";
-	loadingProgressBar.setAttribute("style", "width: 0%");
 
 	req.open("GET", url, true);
 	req.responseType = "arraybuffer";
-	req.onprogress = function(evt) {
-		var vol_size = volDims[0] * volDims[1] * volDims[2];
-		var percent = evt.loaded / vol_size * 100;
-		loadingProgressBar.setAttribute("style", "width: " + percent.toFixed(2) + "%");
-	};
-	req.onerror = function(evt) {
-		loadingProgressText.innerHTML = "Error Loading Volume";
-		loadingProgressBar.setAttribute("style", "width: 0%");
-	};
-	req.onload = function(evt) {
-		loadingProgressText.innerHTML = "Loaded Volume";
-		loadingProgressBar.setAttribute("style", "width: 100%");
+	// req.onprogress = function (evt) {
+	// 	var vol_size = volDims[0] * volDims[1] * volDims[2];
+	// 	var percent = evt.loaded / vol_size * 100;
+	// 	loadingProgressBar.setAttribute("style", "width: " + percent.toFixed(2) + "%");
+	// };
+	// req.onerror = function (evt) {
+	// 	loadingProgressText.innerHTML = "Error Loading Volume";
+	// 	loadingProgressBar.setAttribute("style", "width: 0%");
+	// };
+	req.onload = function (evt) {
+		// loadingProgressText.innerHTML = "Loaded Volume";
+		// loadingProgressBar.setAttribute("style", "width: 100%");
 		var dataBuffer = req.response;
 		if (dataBuffer) {
 			dataBuffer = new Uint8Array(dataBuffer);
@@ -89,21 +73,32 @@ var loadVolume = function(url, file, onload) {
 	req.send();
 }
 
-var selectVolume = function() {
-	//var url = document.getElementById("volumeList").value;
-	//var filename = document.getElementById("filename").value;
+var selectColormap = function () {
+	var selection = document.getElementById("colormapList").value;
+	var colormapImage = new Image();
+	colormapImage.onload = function () {
+		gl.activeTexture(gl.TEXTURE1);
+		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 1,
+			gl.RGBA, gl.UNSIGNED_BYTE, colormapImage);
+	};
+	colormapImage.src = colormaps[selection];
+}
 
-var selector = document.getElementById("fileSelector");
+function getUrlParameter(name) {
+    name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+    var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+    var results = regex.exec(location.search);
+    return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+};
 
-	var url = "http://localhost:1337" + selector.value;
-	var filename = "/" + selector[selector.selectedIndex].innerHTML;
+window.onload = function () {
+	var url = getUrlParameter('url');
+	var filename = getUrlParameter('filename');
 
-console.log(url);
-console.log(filename);
+	//url = "https://voxelise-api.mattbuckley.org/uploads/86e85398ff314e13b0523664f7f02bf8.raw"
+	//filename = "/jhgfd_100x100x100_uint8.raw"
 
-	//history.replaceState(history.state, "#" + selection, "#" + selection);
-
-	loadVolume(url, filename, function(file, dataBuffer) {
+	loadVolume(url, filename, function (file, dataBuffer) {
 		var m = file.match(fileRegex);
 		var volDims = [parseInt(m[2]), parseInt(m[3]), parseInt(m[4])];
 
@@ -121,7 +116,8 @@ console.log(filename);
 
 		var longestAxis = Math.max(volDims[0], Math.max(volDims[1], volDims[2]));
 		var volScale = [volDims[0] / longestAxis, volDims[1] / longestAxis,
-			volDims[2] / longestAxis];
+			volDims[2] / longestAxis
+		];
 
 		gl.uniform3iv(shader.uniforms["volume_dims"], volDims);
 		gl.uniform3fv(shader.uniforms["volume_scale"], volScale);
@@ -129,7 +125,7 @@ console.log(filename);
 		newVolumeUpload = true;
 		if (!volumeTexture) {
 			volumeTexture = tex;
-			setInterval(function() {
+			setInterval(function () {
 				// Save them some battery if they're not viewing the tab
 				if (document.hidden) {
 					return;
@@ -170,49 +166,6 @@ console.log(filename);
 			volumeTexture = tex;
 		}
 	});
-}
-
-function getOptions(selectID) {
-	var req = new XMLHttpRequest();
-
-	req.open("GET", "http://localhost:1337/volumes", true);
-	//req.responseType = "arraybuffer";
-	req.onerror = function(evt) {
-		console.log(evt);
-	};
-	req.onload = function(evt) {
-		var volumes = JSON.parse(req.response);
-
-		console.log(volumes);
-
-		select = document.getElementById(selectID);
-
-		volumes.forEach(function(element) {
-			var opt = document.createElement('option');
-			opt.value = element.file.url;
-			opt.innerHTML = element.file.name;
-			select.appendChild(opt);
-		});
-	};
-
-	req.send();
-}
-
-var selectColormap = function() {
-	var selection = document.getElementById("colormapList").value;
-	var colormapImage = new Image();
-	colormapImage.onload = function() {
-		gl.activeTexture(gl.TEXTURE1);
-		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 1,
-			gl.RGBA, gl.UNSIGNED_BYTE, colormapImage);
-	};
-	colormapImage.src = colormaps[selection];
-}
-
-window.onload = function(){
-	getOptions('fileSelector');
-	fillVolumeSelector();
-	fillcolormapSelector();
 
 	var canvas = document.getElementById("glcanvas");
 	gl = canvas.getContext("webgl2");
@@ -231,7 +184,7 @@ window.onload = function(){
 
 	// Register mouse and touch listeners
 	var controller = new Controller();
-	controller.mousemove = function(prev, cur, evt) {
+	controller.mousemove = function (prev, cur, evt) {
 		if (evt.buttons == 1) {
 			camera.rotate(prev, cur);
 
@@ -239,9 +192,13 @@ window.onload = function(){
 			camera.pan([cur[0] - prev[0], prev[1] - cur[1]]);
 		}
 	};
-	controller.wheel = function(amt) { camera.zoom(amt); };
+	controller.wheel = function (amt) {
+		camera.zoom(amt);
+	};
 	controller.pinch = controller.wheel;
-	controller.twoFingerDrag = function(drag) { camera.pan(drag); };
+	controller.twoFingerDrag = function (drag) {
+		camera.pan(drag);
+	};
 
 	controller.registerForCanvas(canvas);
 
@@ -281,7 +238,7 @@ window.onload = function(){
 	// Load the default colormap and upload it, after which we
 	// load the default volume.
 	var colormapImage = new Image();
-	colormapImage.onload = function() {
+	colormapImage.onload = function () {
 		var colormap = gl.createTexture();
 		gl.activeTexture(gl.TEXTURE1);
 		gl.bindTexture(gl.TEXTURE_2D, colormap);
@@ -292,12 +249,12 @@ window.onload = function(){
 		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 1,
 			gl.RGBA, gl.UNSIGNED_BYTE, colormapImage);
 
-		selectVolume();
+		//selectVolume();
 	};
 	colormapImage.src = "colormaps/cool-warm-paraview.png";
 }
 
-var fillVolumeSelector = function() {
+var fillVolumeSelector = function () {
 	var selector = document.getElementById("volumeList");
 	for (v in volumes) {
 		var opt = document.createElement("option");
@@ -307,7 +264,7 @@ var fillVolumeSelector = function() {
 	}
 }
 
-var fillcolormapSelector = function() {
+var fillcolormapSelector = function () {
 	var selector = document.getElementById("colormapList");
 	for (p in colormaps) {
 		var opt = document.createElement("option");
@@ -316,4 +273,3 @@ var fillcolormapSelector = function() {
 		selector.appendChild(opt);
 	}
 }
-
